@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8" ?><ChoregrapheProject xmlns="http://www.aldebaran-robotics.com/schema/choregraphe/project.xsd" xar_version="3"><Box name="root" id="-1" localization="8" tooltip="Root box of Choregraphe&apos;s behavior. Highest level possible." x="0" y="0"><bitmap>media/images/box/root.png</bitmap><script language="4"><content><![CDATA[]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this input." id="3" /><Output name="onStopped" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when box behavior is finished." id="4" /><Timeline enable="0"><BehaviorLayer name="behavior_layer1"><BehaviorKeyframe name="keyframe1" index="1"><Diagram scale="59.4604"><Box name="Say" id="3" localization="8" tooltip="Say some text. The text can be localized." x="728" y="283"><bitmap>media/images/box/interaction/say.png</bitmap><script language="4"><content><![CDATA[import time
+
+class MyClass(GeneratedClass):
+    def __init__(self):
+        GeneratedClass.__init__(self, False)
+        self.tts = ALProxy('ALTextToSpeech')
+        self.ttsStop = ALProxy('ALTextToSpeech', True) #Create another proxy as wait is blocking if audioout is remote
+
+    def onLoad(self):
+        self.bIsRunning = False
+        self.ids = []
+
+    def onUnload(self):
+        for id in self.ids:
+            try:
+                self.ttsStop.stop(id)
+            except:
+                pass
+        while( self.bIsRunning ):
+            time.sleep( 0.2 )
+
+    def onInput_onStart(self):
+        self.bIsRunning = True
+        try:
+            sentence = "\RSPD="+ str( self.getParameter("Speed (%)") ) + "\ "
+            sentence += "\VCT="+ str( self.getParameter("Voice shaping (%)") ) + "\ "
+            sentence += self.getParameter("Text")
+            sentence +=  "\RST\ "
+            id = self.tts.post.say(str(sentence))
+            self.ids.append(id)
+            self.tts.wait(id, 0)
+        finally:
+            try:
+                self.ids.remove(id)
+            except:
+                pass
+            if( self.ids == [] ):
+                self.onStopped() # activate output of the box
+                self.bIsRunning = False
+
+    def onInput_onStop(self):
+        self.onUnload()]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when Diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this Input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this Input." id="3" /><Output name="onStopped" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when Box behavior is finished." id="4" /><Parameter name="Voice shaping (%)" inherits_from_parent="1" content_type="1" value="100" default_value="100" min="50" max="150" tooltip='Used to modify at runtime the voice feature (tone, speed). In a slighty&#x0A;different way than pitch and speed, it gives a kind of &quot;gender or age&#x0A;modification&quot; effect.&#x0A;&#x0A;For instance, a quite good male derivation of female voice can be&#x0A;obtained setting this parameter to 78%.&#x0A;&#x0A;Note: For a better effect, you can compensate this parameter with the&#x0A;speed parameter. For example, if you want to decrease by 20% the voice&#x0A;shaping, you will have to increase by 20% the speed to keep a constant&#x0A;average speed.' id="5" /><Parameter name="Speed (%)" inherits_from_parent="1" content_type="1" value="100" default_value="100" min="50" max="200" tooltip="Changes the speed of the voice.&#x0A;&#x0A;Note: For a better effect, you can compensate this parameter with the voice&#x0A;shaping parameter. For example, if you want to increase by 20% the speed, you&#x0A;will have to decrease by 20% the voice shaping to keep a constant average&#x0A;speed." id="6" /><Parameter name="Text" inherits_from_parent="0" content_type="5" value="Hello Manuel, nice to meet you. Simone told me you need a hand." default_value="" tooltip="The text you want to say. Don&apos;t forget to translate it!" id="7" /></Box><Box name="Delay (1)" id="6" localization="8" tooltip="Wait a moment before triggering the output. &#x0A;Can be stopped anytime. &#x0A;Multiple inputs will trigger multiple outputs." x="380" y="72"><bitmap>media/images/box/wait.png</bitmap><script language="4"><content><![CDATA[class MyClass(GeneratedClass):
+    def __init__(self):
+        GeneratedClass.__init__(self, False)
+
+    def onLoad(self):
+        self.delayed = []
+
+    def onUnload(self):
+        self.cancelDelays()
+
+    def cancelDelays(self):
+        cancel_list = list(self.delayed)
+        for d in cancel_list:
+            d.cancel()
+
+    def cleanDelay(self, fut, fut_ref):
+        self.delayed.remove(fut)
+
+    def triggerOutput(self):
+        self.timerOutput()
+
+    def onInput_onStart(self):
+        import qi
+        import functools
+        delay_future = qi.async(self.triggerOutput, delay=int(self.getParameter("Timeout (s)") * 1000 * 1000))
+        # keep the async operation in an array for cancel
+        # and remove it when it is finished in the callback
+        self.delayed.append(delay_future)
+        bound_clean = functools.partial(self.cleanDelay, delay_future)
+        delay_future.addCallback(bound_clean)
+
+    def onInput_onStop(self):
+        if self.getParameter("Trigger timerOutput if cancelled") and self.delayed:
+            self.timerOutput()
+        self.onUnload()]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Start the Delay box with the configured timeout value." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Stop the wait and stimulate the output." id="3" /><Output name="timerOutput" type="1" type_size="1" nature="1" inner="0" tooltip="Send a bang once delay set in parameters is elapsed, or if the box is stopped and the appropriate parameter is set." id="4" /><Parameter name="Timeout (s)" inherits_from_parent="0" content_type="2" value="1" default_value="1" min="0" max="5000" tooltip="Duration the box waits before stimulating the output." id="5" /><Parameter name="Trigger timerOutput if cancelled" inherits_from_parent="0" content_type="0" value="0" default_value="1" tooltip="If the box is currently delaying at least one signal and cancelled, output will be stimulated." id="6" /></Box><Box name="Retrieve" id="8" localization="8" tooltip="Robot retrieves object from user" x="742" y="639"><bitmap>media/images/box/movement/move.png</bitmap><script language="4"><content><![CDATA[]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this input." id="3" /><Output name="onStopped" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when box behavior is finished." id="4" /><Timeline enable="1" fps="25" start_frame="1" end_frame="129" size="129"><BehaviorLayer name="behavior_layer1"><BehaviorKeyframe name="keyframe1" index="1"><Diagram /></BehaviorKeyframe></BehaviorLayer><ActuatorList model=""><ActuatorCurve name="" actuator="LElbowYaw" mute="0" unit="0"><Key frame="25" value="-71.2" /><Key frame="50" value="-71.2" /><Key frame="75" value="-71.2" /><Key frame="100" value="-71.2" /><Key frame="125" value="-71.2" /></ActuatorCurve><ActuatorCurve name="" actuator="LHand" mute="0" unit="1"><Key frame="25" value="0.66" /><Key frame="50" value="0.66" /><Key frame="75" value="0.66" /><Key frame="100" value="0.66" /><Key frame="125" value="0.66" /></ActuatorCurve><ActuatorCurve name="" actuator="LShoulderPitch" mute="0" unit="0"><Key frame="25" value="72.4" /><Key frame="50" value="72.4" /><Key frame="75" value="72.4" /><Key frame="100" value="72.4" /><Key frame="125" value="72.4" /></ActuatorCurve><ActuatorCurve name="" actuator="RElbowRoll" mute="0" unit="0"><Key frame="25" value="22.8" /><Key frame="50" value="22.8" /><Key frame="75" value="22.8" /><Key frame="100" value="22.8" /><Key frame="125" value="22.8" /></ActuatorCurve><ActuatorCurve name="" actuator="RElbowYaw" mute="0" unit="0"><Key frame="25" value="119.5" /><Key frame="50" value="119.5" /><Key frame="75" value="119.5" /><Key frame="100" value="119.5" /><Key frame="125" value="119.5" /></ActuatorCurve><ActuatorCurve name="" actuator="RHand" mute="0" unit="1"><Key frame="25" value="0.98" /><Key frame="50" value="0.98" /><Key frame="75" value="0.98" /><Key frame="100" value="0.02" /><Key frame="125" value="0.02" /></ActuatorCurve><ActuatorCurve name="" actuator="RShoulderPitch" mute="0" unit="0"><Key frame="25" value="7.8" /><Key frame="50" value="7.8" /><Key frame="75" value="7.8" /><Key frame="100" value="7.8" /><Key frame="125" value="7.8" /></ActuatorCurve><ActuatorCurve name="value" actuator="RShoulderRoll" mute="0" unit="0"><Key frame="25" value="-6" /><Key frame="50" value="-6" /><Key frame="75" value="-6" /><Key frame="100" value="-6" /><Key frame="125" value="-6" /></ActuatorCurve><ActuatorCurve name="value" actuator="RWristYaw" mute="0" unit="0"><Key frame="25" value="55.2" /><Key frame="50" value="55.2" /><Key frame="75" value="55.2" /><Key frame="100" value="55.2" /><Key frame="125" value="55.2" /></ActuatorCurve></ActuatorList></Timeline></Box><Box name="Delay (2)" id="15" localization="8" tooltip="Wait a moment before triggering the output. &#x0A;Can be stopped anytime. &#x0A;Multiple inputs will trigger multiple outputs." x="1013" y="709"><bitmap>media/images/box/wait.png</bitmap><script language="4"><content><![CDATA[class MyClass(GeneratedClass):
+    def __init__(self):
+        GeneratedClass.__init__(self, False)
+
+    def onLoad(self):
+        self.delayed = []
+
+    def onUnload(self):
+        self.cancelDelays()
+
+    def cancelDelays(self):
+        cancel_list = list(self.delayed)
+        for d in cancel_list:
+            d.cancel()
+
+    def cleanDelay(self, fut, fut_ref):
+        self.delayed.remove(fut)
+
+    def triggerOutput(self):
+        self.timerOutput()
+
+    def onInput_onStart(self):
+        import qi
+        import functools
+        delay_future = qi.async(self.triggerOutput, delay=int(self.getParameter("Timeout (s)") * 1000 * 1000))
+        # keep the async operation in an array for cancel
+        # and remove it when it is finished in the callback
+        self.delayed.append(delay_future)
+        bound_clean = functools.partial(self.cleanDelay, delay_future)
+        delay_future.addCallback(bound_clean)
+
+    def onInput_onStop(self):
+        if self.getParameter("Trigger timerOutput if cancelled") and self.delayed:
+            self.timerOutput()
+        self.onUnload()]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Start the Delay box with the configured timeout value." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Stop the wait and stimulate the output." id="3" /><Output name="timerOutput" type="1" type_size="1" nature="1" inner="0" tooltip="Send a bang once delay set in parameters is elapsed, or if the box is stopped and the appropriate parameter is set." id="4" /><Parameter name="Timeout (s)" inherits_from_parent="0" content_type="2" value="4" default_value="1" min="0" max="5000" tooltip="Duration the box waits before stimulating the output." id="5" /><Parameter name="Trigger timerOutput if cancelled" inherits_from_parent="0" content_type="0" value="0" default_value="1" tooltip="If the box is currently delaying at least one signal and cancelled, output will be stimulated." id="6" /></Box><Box name="Deliver" id="13" localization="8" tooltip="Robot brings object to user" x="1532" y="690"><bitmap>media/images/box/movement/move.png</bitmap><script language="4"><content><![CDATA[]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this input." id="3" /><Output name="onStopped" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when box behavior is finished." id="4" /><Timeline enable="1" fps="25" start_frame="1" end_frame="180" size="180"><BehaviorLayer name="behavior_layer1"><BehaviorKeyframe name="keyframe1" index="1"><Diagram /></BehaviorKeyframe></BehaviorLayer><ActuatorList model=""><ActuatorCurve name="" actuator="LElbowYaw" mute="0" unit="0"><Key frame="25" value="-71.2" /><Key frame="50" value="-71.2" /><Key frame="75" value="-71.2" /><Key frame="100" value="-71.2" /><Key frame="125" value="-71.2" /><Key frame="150" value="-71.2" /><Key frame="175" value="-71.2" /></ActuatorCurve><ActuatorCurve name="" actuator="LHand" mute="0" unit="1"><Key frame="25" value="0.66" /><Key frame="50" value="0.66" /><Key frame="75" value="0.66" /><Key frame="100" value="0.66" /><Key frame="125" value="0.66" /><Key frame="150" value="0.66" /><Key frame="175" value="0.66" /></ActuatorCurve><ActuatorCurve name="" actuator="LShoulderPitch" mute="0" unit="0"><Key frame="25" value="72.4" /><Key frame="50" value="72.4" /><Key frame="75" value="72.4" /><Key frame="100" value="72.4" /><Key frame="125" value="72.4" /><Key frame="150" value="72.4" /><Key frame="175" value="72.4" /></ActuatorCurve><ActuatorCurve name="" actuator="RElbowRoll" mute="0" unit="0"><Key frame="25" value="22.8" /><Key frame="50" value="22.8" /><Key frame="75" value="22.8" /><Key frame="100" value="22.8" /><Key frame="125" value="22.8" /><Key frame="150" value="22.8" /><Key frame="175" value="22.8" /></ActuatorCurve><ActuatorCurve name="" actuator="RElbowYaw" mute="0" unit="0"><Key frame="25" value="119.5" /><Key frame="50" value="119.5" /><Key frame="75" value="119.5" /><Key frame="100" value="119.5" /><Key frame="125" value="119.5" /><Key frame="150" value="119.5" /><Key frame="175" value="119.5" /></ActuatorCurve><ActuatorCurve name="" actuator="RHand" mute="0" unit="1"><Key frame="25" value="0.02" /><Key frame="50" value="0.02" /><Key frame="75" value="0.02" /><Key frame="100" value="0.02" /><Key frame="125" value="0.5" /><Key frame="150" value="0.5" /><Key frame="175" value="0.5" /></ActuatorCurve><ActuatorCurve name="" actuator="RShoulderPitch" mute="0" unit="0"><Key frame="25" value="7.8" /><Key frame="50" value="7.8" /><Key frame="75" value="7.8" /><Key frame="100" value="7.8" /><Key frame="125" value="7.8" /><Key frame="150" value="7.8" /><Key frame="175" value="7.8" /></ActuatorCurve><ActuatorCurve name="value" actuator="RShoulderRoll" mute="0" unit="0"><Key frame="25" value="-6" /><Key frame="50" value="-6" /><Key frame="75" value="-6" /><Key frame="100" value="-6" /><Key frame="125" value="-6" /><Key frame="150" value="-6" /><Key frame="175" value="-6" /></ActuatorCurve><ActuatorCurve name="value" actuator="RWristYaw" mute="0" unit="0"><Key frame="25" value="55.2" /><Key frame="50" value="55.2" /><Key frame="75" value="55.2" /><Key frame="100" value="55.2" /><Key frame="125" value="55.2" /><Key frame="150" value="55.2" /><Key frame="175" value="55.2" /></ActuatorCurve></ActuatorList></Timeline></Box><Box name="Greetings" id="18" localization="8" tooltip="Robot greets user" x="935" y="152"><bitmap>media/images/box/movement/move.png</bitmap><script language="4"><content><![CDATA[]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this input." id="3" /><Output name="onStopped" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when box behavior is finished." id="4" /><Timeline enable="1" fps="25" start_frame="1" end_frame="-1" size="300"><BehaviorLayer name="behavior_layer1"><BehaviorKeyframe name="keyframe1" index="1"><Diagram /></BehaviorKeyframe></BehaviorLayer><ActuatorList model=""><ActuatorCurve name="" actuator="HeadPitch" mute="0" unit="0"><Key frame="25" value="-24.6" /></ActuatorCurve><ActuatorCurve name="" actuator="LElbowRoll" mute="0" unit="0"><Key frame="50" value="-16.8" /><Key frame="100" value="-16.8" /></ActuatorCurve><ActuatorCurve name="" actuator="LElbowYaw" mute="0" unit="0"><Key frame="25" value="-71" /><Key frame="50" value="-74.3" /><Key frame="75" value="-71" /><Key frame="100" value="-74.3" /><Key frame="125" value="-71" /><Key frame="150" value="-71.2" /><Key frame="175" value="-71.2" /><Key frame="200" value="-71.2" /><Key frame="225" value="-71.2" /><Key frame="250" value="-71.2" /><Key frame="275" value="-71.2" /><Key frame="300" value="-71.2" /></ActuatorCurve><ActuatorCurve name="" actuator="LHand" mute="0" unit="1"><Key frame="25" value="0.98" /><Key frame="50" value="0.98" /><Key frame="75" value="0.98" /><Key frame="100" value="0.98" /><Key frame="125" value="0.98" /><Key frame="150" value="0.66" /><Key frame="175" value="0.66" /><Key frame="200" value="0.66" /><Key frame="225" value="0.66" /><Key frame="250" value="0.66" /><Key frame="275" value="0.66" /><Key frame="300" value="0.66" /></ActuatorCurve><ActuatorCurve name="" actuator="LShoulderPitch" mute="0" unit="0"><Key frame="25" value="-65" /><Key frame="50" value="-64.7" /><Key frame="75" value="-65" /><Key frame="100" value="-64.7" /><Key frame="125" value="-65" /><Key frame="150" value="72.4" /><Key frame="175" value="72.4" /><Key frame="200" value="72.4" /><Key frame="225" value="72.4" /><Key frame="250" value="72.4" /><Key frame="275" value="72.4" /><Key frame="300" value="72.4" /></ActuatorCurve><ActuatorCurve name="" actuator="LShoulderRoll" mute="0" unit="0"><Key frame="25" value="9.6" /><Key frame="50" value="40.9" /><Key frame="75" value="9.6" /><Key frame="100" value="40.9" /><Key frame="125" value="9.6" /></ActuatorCurve><ActuatorCurve name="" actuator="LWristYaw" mute="0" unit="0"><Key frame="25" value="75.3" /><Key frame="50" value="80.7" /><Key frame="75" value="75.3" /><Key frame="100" value="80.7" /><Key frame="125" value="75.3" /></ActuatorCurve><ActuatorCurve name="" actuator="RElbowRoll" mute="0" unit="0"><Key frame="25" value="27.7" /><Key frame="75" value="28.6" /><Key frame="125" value="28.6" /><Key frame="150" value="24.2" /><Key frame="175" value="24.2" /><Key frame="200" value="24.2" /><Key frame="225" value="24.2" /><Key frame="250" value="24.2" /><Key frame="275" value="6.4" /><Key frame="300" value="6.4" /></ActuatorCurve><ActuatorCurve name="" actuator="RElbowYaw" mute="0" unit="0"><Key frame="150" value="69.1" /><Key frame="175" value="69.1" /><Key frame="200" value="69.1" /><Key frame="225" value="69.1" /><Key frame="250" value="69.1" /><Key frame="275" value="119.5" /><Key frame="300" value="119.5" /></ActuatorCurve><ActuatorCurve name="" actuator="RHand" mute="0" unit="1"><Key frame="25" value="0.6" /><Key frame="75" value="0.61" /><Key frame="125" value="0.61" /><Key frame="150" value="0.98" /><Key frame="175" value="0.98" /><Key frame="200" value="0.98" /><Key frame="225" value="0.98" /><Key frame="250" value="0.98" /><Key frame="275" value="0.67" /><Key frame="300" value="0.67" /></ActuatorCurve><ActuatorCurve name="" actuator="RShoulderPitch" mute="0" unit="0"><Key frame="25" value="88.2" /><Key frame="125" value="90.7" /><Key frame="150" value="-9.4" /><Key frame="175" value="-9.4" /><Key frame="200" value="-9.4" /><Key frame="225" value="-9.4" /><Key frame="250" value="-9.4" /><Key frame="275" value="79.8" /><Key frame="300" value="79.8" /></ActuatorCurve><ActuatorCurve name="value" actuator="RShoulderRoll" mute="0" unit="0"><Key frame="275" value="-7.1" /><Key frame="300" value="-7.1" /></ActuatorCurve><ActuatorCurve name="value" actuator="RWristYaw" mute="0" unit="0"><Key frame="150" value="21.3" /><Key frame="175" value="21.3" /><Key frame="200" value="21.3" /><Key frame="225" value="21.3" /><Key frame="250" value="21.3" /><Key frame="275" value="-67.1" /><Key frame="300" value="-67.1" /></ActuatorCurve></ActuatorList></Timeline></Box><Box name="Game" id="1" localization="8" tooltip="An example of multilanguage dialog implementation" x="1761" y="634"><dialogFile>../Lego/Lego.dlg</dialogFile><bitmap>media/images/box/box-dialog.png</bitmap><script language="4"><content><![CDATA[]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this input." id="3" /><Output name="onStopped" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when box behavior is finished." id="4" /><Output name="playAGame" type="1" type_size="1" nature="2" inner="0" tooltip="stimulated using $playAGame=1 in qiChat script when User wants to play a game&#x0A;" id="5" /><Resource name="Speech" type="Lock" timeout="0" /><Resource name="Speech recognition" type="Lock" timeout="0" /></Box><Box name="Move To" id="4" localization="8" tooltip="Make the robot move to a configured point relative to its current location." x="440" y="260"><bitmap>media/images/box/movement/walk_forward.png</bitmap><script language="4"><content><![CDATA[import almath
+import math
+from time import sleep
+
+
+class MyClass(GeneratedClass):
+    def __init__(self):
+        GeneratedClass.__init__(self, False)
+        self.motion = ALProxy("ALMotion")
+        self.positionErrorThresholdPos = 0.2
+        self.positionErrorThresholdAng = 0.2
+
+    def onLoad(self):
+        pass
+
+    def onUnload(self):
+        self.motion.moveToward(0.0, 0.0, 0.0)
+
+    def onInput_onStart(self):
+        # The command position estimation will be set to the sensor position
+        # when the robot starts moving, so we use sensors first and commands later.
+        initPosition = almath.Pose2D(self.motion.getRobotPosition(True))
+        targetDistance = almath.Pose2D(self.getParameter("Distance X (m)"),
+            self.getParameter("Distance Y (m)"),
+            self.getParameter("Theta (deg)") * almath.PI / 180)
+        expectedEndPosition = initPosition * targetDistance
+        enableArms = self.getParameter("Arms movement enabled")
+        self.motion.setMoveArmsEnabled(enableArms, enableArms) #vedi
+
+        self.motion.moveTo(self.getParameter("Distance X (m)"),
+            self.getParameter("Distance Y (m)"),
+            self.getParameter("Theta (deg)") * almath.PI / 180)
+
+        # The move is finished so output
+        realEndPosition = almath.Pose2D(self.motion.getRobotPosition(False))
+
+        currState = self.motion.getRobotPosition(True)
+
+        positionError = realEndPosition.diff(expectedEndPosition)
+        positionError.theta = almath.modulo2PI(positionError.theta)
+
+        self.logger.info("X: " + str(positionError.x) + "Y: " + str(positionError.y) + "theta: " + str(positionError.theta))
+
+        if (abs(positionError.x) < self.positionErrorThresholdPos
+            and abs(positionError.y) < self.positionErrorThresholdPos
+            and abs(positionError.theta) < self.positionErrorThresholdAng):
+            self.logger.info("successfully reached destination")
+            self.onArrivedAtDestination()
+            self.onInput_onStop()
+        else:
+            self.logger.info("error")
+            self.onStoppedBeforeArriving(positionError.toVector())
+            self.onInput_onStop()
+
+    def onInput_onStop(self):
+        self.onUnload()]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when Diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this input." id="3" /><Input name="bool" type="2" type_size="1" nature="1" inner="0" tooltip="" id="4" /><Output name="onArrivedAtDestination" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when the robot arrives at its destination." id="5" /><Output name="onStoppedBeforeArriving" type="0" type_size="1" nature="1" inner="0" tooltip="Signal sent when the robot stops before arriving to its destination. Returns a vector [x (m), y (m), theta(rad)] with the remaining distance up to the destination. This distance is expressed in the ROBOT frame." id="6" /><Parameter name="Distance X (m)" inherits_from_parent="0" content_type="2" value="2" default_value="0.2" min="-5" max="10" tooltip="The distance in meters for forward/backward motion. Positive value&#x0A;means forward, negative value means backward." id="7" /><Parameter name="Distance Y (m)" inherits_from_parent="0" content_type="2" value="0" default_value="0" min="-5" max="5" tooltip="The distance in meters for lateral motion. Positive value means left, negative&#x0A;value means right." id="8" /><Parameter name="Theta (deg)" inherits_from_parent="0" content_type="2" value="0" default_value="0" min="-180" max="180" tooltip="The orientation in degrees for final rotation. Positive value means anticlockwise,&#x0A;negative value means clockwise." id="9" /><Parameter name="Arms movement enabled" inherits_from_parent="0" content_type="0" value="1" default_value="1" tooltip="Enables natural motion of the arms." id="10" /><Resource name="Legs" type="Lock" timeout="0" /></Box><Box name="Target" id="5" localization="8" tooltip="An example of multilanguage dialog implementation" x="253" y="218"><dialogFile>../target/target.dlg</dialogFile><bitmap>media/images/box/box-dialog.png</bitmap><script language="4"><content><![CDATA[]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this input." id="3" /><Output name="onStopped" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when box behavior is finished." id="4" /><Output name="bool" type="2" type_size="1" nature="2" inner="0" tooltip="" id="5" /><Resource name="Speech" type="Lock" timeout="0" /><Resource name="Speech recognition" type="Lock" timeout="0" /></Box><Box name="Bring" id="12" localization="8" tooltip="An example of multilanguage dialog implementation" x="506" y="747"><dialogFile>../bring/bring.dlg</dialogFile><bitmap>media/images/box/box-dialog.png</bitmap><script language="4"><content><![CDATA[]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this input." id="3" /><Output name="onStopped" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when box behavior is finished." id="4" /><Output name="bool1" type="2" type_size="1" nature="2" inner="0" tooltip="" id="5" /><Resource name="Speech" type="Lock" timeout="0" /><Resource name="Speech recognition" type="Lock" timeout="0" /></Box><Box name="Move To (1)" id="7" localization="8" tooltip="Make the robot move to a configured point relative to its current location." x="1265" y="787"><bitmap>media/images/box/movement/walk_forward.png</bitmap><script language="4"><content><![CDATA[import almath
+import math
+from time import sleep
+
+
+class MyClass(GeneratedClass):
+    def __init__(self):
+        GeneratedClass.__init__(self, False)
+        self.motion = ALProxy("ALMotion")
+        self.positionErrorThresholdPos = 0.02
+        self.positionErrorThresholdAng = 0.02
+
+    def onLoad(self):
+        pass
+
+    def onUnload(self):
+        self.motion.moveToward(0.0, 0.0, 0.0)
+
+    def onInput_onStart(self):
+        # The command position estimation will be set to the sensor position
+        # when the robot starts moving, so we use sensors first and commands later.
+        initPosition = almath.Pose2D(self.motion.getRobotPosition(True))
+        targetDistance = almath.Pose2D(self.getParameter("Distance X (m)"),
+            self.getParameter("Distance Y (m)"),
+            self.getParameter("Theta (deg)") * almath.PI / 180)
+        expectedEndPosition = initPosition * targetDistance
+        enableArms = self.getParameter("Arms movement enabled")
+        self.motion.setMoveArmsEnabled(enableArms, enableArms) #vedi
+
+        self.motion.moveTo(self.getParameter("Distance X (m)"),
+            self.getParameter("Distance Y (m)"),
+            self.getParameter("Theta (deg)") * almath.PI / 180)
+
+        # The move is finished so output
+        realEndPosition = almath.Pose2D(self.motion.getRobotPosition(False))
+
+        positionError = realEndPosition.diff(expectedEndPosition)
+        positionError.theta = almath.modulo2PI(positionError.theta)
+
+        self.logger.info("X: " + str(positionError.x) + "Y: " + str(positionError.y) + "theta: " + str(positionError.theta))
+
+        if (abs(positionError.x) < self.positionErrorThresholdPos
+            and abs(positionError.y) < self.positionErrorThresholdPos
+            and abs(positionError.theta) < self.positionErrorThresholdAng):
+            self.logger.info("successfully reached destionation")
+            self.onArrivedAtDestination()
+            self.onInput_onStop()
+        else:
+            self.logger.info("error")
+            self.onStoppedBeforeArriving(positionError.toVector())
+            self.onInput_onStop()
+
+    def onInput_onStop(self):
+        self.onUnload()]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when Diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this input." id="3" /><Input name="bool1" type="2" type_size="1" nature="1" inner="0" tooltip="" id="4" /><Output name="onArrivedAtDestination" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when the robot arrives at its destination." id="5" /><Output name="onStoppedBeforeArriving" type="0" type_size="1" nature="1" inner="0" tooltip="Signal sent when the robot stops before arriving to its destination. Returns a vector [x (m), y (m), theta(rad)] with the remaining distance up to the destination. This distance is expressed in the ROBOT frame." id="6" /><Parameter name="Distance X (m)" inherits_from_parent="0" content_type="2" value="4.5" default_value="0.2" min="-5" max="10" tooltip="The distance in meters for forward/backward motion. Positive value&#x0A;means forward, negative value means backward." id="7" /><Parameter name="Distance Y (m)" inherits_from_parent="0" content_type="2" value="1" default_value="0" min="-5" max="5" tooltip="The distance in meters for lateral motion. Positive value means left, negative&#x0A;value means right." id="8" /><Parameter name="Theta (deg)" inherits_from_parent="0" content_type="2" value="0" default_value="0" min="-180" max="180" tooltip="The orientation in degrees for final rotation. Positive value means anticlockwise,&#x0A;negative value means clockwise." id="9" /><Parameter name="Arms movement enabled" inherits_from_parent="0" content_type="0" value="1" default_value="1" tooltip="Enables natural motion of the arms." id="10" /><Resource name="Legs" type="Lock" timeout="0" /></Box><Box name="Set Language" id="9" localization="8" tooltip="Set the language of your robot for the current application. Your robot will speak and understand the selected language as long as your application has focus. Any following call to ALSpeechRecognition (Speech Reco. box for instance), ALTextToSpeech (Say box for instance) or ALDialog will use this language.&#x0A;" x="107" y="81"><bitmap>media/images/box/interaction/say.png</bitmap><script language="4"><content><![CDATA[class MyClass(GeneratedClass):
+    def __init__(self):
+        GeneratedClass.__init__(self, False)
+
+    def onLoad(self):
+        try:
+            self.tts = ALProxy("ALTextToSpeech")
+        except:
+            self.logger.warn("ALTextToSpeech is not available, language setting cannot be applied to speech")
+            self.tts = None
+
+        try:
+            self.asr = ALProxy("ALSpeechRecognition")
+        except:
+            self.logger.warn("ALSpeechRecognition is not available, language setting cannot be applied to recognition")
+            self.asr = None
+
+        try:
+            self.dialog = ALProxy("ALDialog")
+        except:
+            self.logger.warn("ALDialog is not available, language setting cannot be applied to dialog")
+            self.dialog = None
+
+    def onInput_onSet(self):
+        lang = self.getParameter("Language")
+        try:
+            if self.asr:
+                self.asr.setLanguage( self.getParameter("Language") )
+            if self.tts:
+                self.tts.setLanguage( self.getParameter("Language") )
+            if self.dialog:
+                self.dialog.setLanguage( self.getParameter("Language") )
+            if self.tts is None and self.asr is None and self.dialog is None:
+                raise RuntimeError("Cannot set language: neither ALTextToSpeech nor ALSpeechRecognition nor ALDialog is available.")
+            self.onReady()
+        except:
+            error = "Language " + lang + " cannot be set."
+            self.logger.warn(error)
+            self.onError(error)]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onSet" type="1" type_size="1" nature="1" inner="0" tooltip="The data is set when a signal is received on this input." id="2" /><Output name="onReady" type="1" type_size="1" nature="2" inner="0" tooltip="Signal sent when the data has been set." id="3" /><Output name="onError" type="3" type_size="1" nature="2" inner="0" tooltip="Error output:&#x0A;- triggered if the language asked cannot be set" id="4" /><Parameter name="Language" inherits_from_parent="0" content_type="3" value="English" default_value="English" custom_choice="1" tooltip="Set the language the robot speaks and understands." id="5"><Choice value="Arabic" /><Choice value="Brazilian" /><Choice value="Chinese" /><Choice value="Czech" /><Choice value="Danish" /><Choice value="Dutch" /><Choice value="English" /><Choice value="Finnish" /><Choice value="French" /><Choice value="German" /><Choice value="Greek" /><Choice value="Italian" /><Choice value="Japanese" /><Choice value="Korean" /><Choice value="MandarinTaiwan" /><Choice value="Norwegian" /><Choice value="Polish" /><Choice value="Portuguese" /><Choice value="Russian" /><Choice value="Spanish" /><Choice value="Swedish" /><Choice value="Turkish" /></Parameter><Resource name="Speech" type="Lock" timeout="0" /></Box><Box name="Say (1)" id="10" localization="8" tooltip="Say some text. The text can be localized." x="1515" y="846"><bitmap>media/images/box/interaction/say.png</bitmap><script language="4"><content><![CDATA[import time
+
+class MyClass(GeneratedClass):
+    def __init__(self):
+        GeneratedClass.__init__(self, False)
+        self.tts = ALProxy('ALTextToSpeech')
+        self.ttsStop = ALProxy('ALTextToSpeech', True) #Create another proxy as wait is blocking if audioout is remote
+
+    def onLoad(self):
+        self.bIsRunning = False
+        self.ids = []
+
+    def onUnload(self):
+        for id in self.ids:
+            try:
+                self.ttsStop.stop(id)
+            except:
+                pass
+        while( self.bIsRunning ):
+            time.sleep( 0.2 )
+
+    def onInput_onStart(self):
+        self.bIsRunning = True
+        try:
+            sentence = "\RSPD="+ str( self.getParameter("Speed (%)") ) + "\ "
+            sentence += "\VCT="+ str( self.getParameter("Voice shaping (%)") ) + "\ "
+            sentence += self.getParameter("Text")
+            sentence +=  "\RST\ "
+            id = self.tts.post.say(str(sentence))
+            self.ids.append(id)
+            self.tts.wait(id, 0)
+        finally:
+            try:
+                self.ids.remove(id)
+            except:
+                pass
+            if( self.ids == [] ):
+                self.onStopped() # activate output of the box
+                self.bIsRunning = False
+
+    def onInput_onStop(self):
+        self.onUnload()]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when Diagram is loaded." id="1" /><Input name="onStart" type="1" type_size="1" nature="2" inner="0" tooltip="Box behavior starts when a signal is received on this Input." id="2" /><Input name="onStop" type="1" type_size="1" nature="3" inner="0" tooltip="Box behavior stops when a signal is received on this Input." id="3" /><Output name="onStopped" type="1" type_size="1" nature="1" inner="0" tooltip="Signal sent when Box behavior is finished." id="4" /><Parameter name="Voice shaping (%)" inherits_from_parent="1" content_type="1" value="100" default_value="100" min="50" max="150" tooltip='Used to modify at runtime the voice feature (tone, speed). In a slighty&#x0A;different way than pitch and speed, it gives a kind of &quot;gender or age&#x0A;modification&quot; effect.&#x0A;&#x0A;For instance, a quite good male derivation of female voice can be&#x0A;obtained setting this parameter to 78%.&#x0A;&#x0A;Note: For a better effect, you can compensate this parameter with the&#x0A;speed parameter. For example, if you want to decrease by 20% the voice&#x0A;shaping, you will have to increase by 20% the speed to keep a constant&#x0A;average speed.' id="5" /><Parameter name="Speed (%)" inherits_from_parent="1" content_type="1" value="100" default_value="100" min="50" max="200" tooltip="Changes the speed of the voice.&#x0A;&#x0A;Note: For a better effect, you can compensate this parameter with the voice&#x0A;shaping parameter. For example, if you want to increase by 20% the speed, you&#x0A;will have to decrease by 20% the voice shaping to keep a constant average&#x0A;speed." id="6" /><Parameter name="Text" inherits_from_parent="0" content_type="5" value="Hello Matteo, your friend told me you needed this to finish your game." default_value="" tooltip="The text you want to say. Don&apos;t forget to translate it!" id="7" /></Box><Box name="Set Stiffness" id="2" localization="8" tooltip="Stiffen the motors selected in parameters." x="1198" y="562"><bitmap>media/images/box/movement/stiffness.png</bitmap><script language="4"><content><![CDATA[import time
+
+class MyClass(GeneratedClass):
+    def __init__(self):
+        GeneratedClass.__init__(self, False)
+
+    def onLoad(self):
+        self.bIsRunning = False
+        self.motion = ALProxy("ALMotion")
+
+    def onUnload(self):
+        self.bIsRunning = False
+
+    def setStiffness(self, stiffness):
+        self.bIsRunning = True
+        duration = self.getParameter("Duration (s)")
+        if(self.getParameter("Head")):
+            self.motion.post.stiffnessInterpolation("Head", stiffness, duration)
+        if(self.getParameter("Left arm")):
+            self.motion.post.stiffnessInterpolation("LArm", stiffness, duration)
+        if(self.getParameter("Right arm")):
+            self.motion.post.stiffnessInterpolation("RArm", stiffness, duration)
+        if(self.getParameter("Left leg")):
+            self.motion.post.stiffnessInterpolation("LLeg", stiffness, duration)
+        if(self.getParameter("Right leg")):
+            self.motion.post.stiffnessInterpolation("RLeg", stiffness, duration)
+        time.sleep(duration)
+        self.bIsRunning = False
+
+    def onInput_onSet(self):
+        if( self.bIsRunning ):
+            return
+        self.setStiffness(self.getParameter("Motors stiffness (%)")/100.)
+        self.onReady() #~ activate output of the box]]></content></script><Input name="onLoad" type="1" type_size="1" nature="0" inner="1" tooltip="Signal sent when diagram is loaded." id="1" /><Input name="onSet" type="1" type_size="1" nature="1" inner="0" tooltip="When this input is stimulated, the stiffness of the selected motors is set to&#x0A;the stiffness parameter value." id="2" /><Output name="onReady" type="1" type_size="1" nature="2" inner="0" tooltip="Signal sent when stiffness has been set." id="3" /><Parameter name="Head" inherits_from_parent="0" content_type="0" value="1" default_value="1" tooltip="Do we want to modify the head stiffness?" id="4" /><Parameter name="Left arm" inherits_from_parent="0" content_type="0" value="1" default_value="1" tooltip="Do we want to modify the left arm stiffness?" id="5" /><Parameter name="Right arm" inherits_from_parent="0" content_type="0" value="1" default_value="1" tooltip="Do we want to modify the right arm stiffness?" id="6" /><Parameter name="Left leg" inherits_from_parent="0" content_type="0" value="1" default_value="1" tooltip="Do we want to modify the left leg stiffness?" id="7" /><Parameter name="Right leg" inherits_from_parent="0" content_type="0" value="1" default_value="1" tooltip="Do we want to modify the right leg stiffness?" id="8" /><Parameter name="Motors stiffness (%)" inherits_from_parent="0" content_type="1" value="100" default_value="100" min="0" max="100" tooltip="Stiffness value the motors are set to." id="9" /><Parameter name="Duration (s)" inherits_from_parent="0" content_type="2" value="10" default_value="1" min="0.02" max="10" tooltip="How much time to go to the max/min stiffness in seconds." id="10" /></Box><Link inputowner="0" indexofinput="4" outputowner="1" indexofoutput="4" /><Link inputowner="4" indexofinput="2" outputowner="6" indexofoutput="4" /><Link inputowner="6" indexofinput="2" outputowner="5" indexofoutput="5" /><Link inputowner="4" indexofinput="4" outputowner="5" indexofoutput="5" /><Link inputowner="5" indexofinput="3" outputowner="5" indexofoutput="5" /><Link inputowner="12" indexofinput="2" outputowner="18" indexofoutput="4" /><Link inputowner="8" indexofinput="2" outputowner="12" indexofoutput="5" /><Link inputowner="12" indexofinput="3" outputowner="12" indexofoutput="5" /><Link inputowner="7" indexofinput="2" outputowner="15" indexofoutput="4" /><Link inputowner="13" indexofinput="2" outputowner="7" indexofoutput="5" /><Link inputowner="9" indexofinput="2" outputowner="0" indexofoutput="2" /><Link inputowner="1" indexofinput="2" outputowner="13" indexofoutput="4" /><Link inputowner="5" indexofinput="2" outputowner="9" indexofoutput="3" /><Link inputowner="18" indexofinput="2" outputowner="4" indexofoutput="5" /><Link inputowner="3" indexofinput="2" outputowner="4" indexofoutput="5" /><Link inputowner="7" indexofinput="4" outputowner="12" indexofoutput="5" /><Link inputowner="15" indexofinput="2" outputowner="8" indexofoutput="4" /><Link inputowner="10" indexofinput="2" outputowner="7" indexofoutput="5" /><Link inputowner="2" indexofinput="2" outputowner="8" indexofoutput="4" /></Diagram></BehaviorKeyframe></BehaviorLayer></Timeline></Box></ChoregrapheProject>

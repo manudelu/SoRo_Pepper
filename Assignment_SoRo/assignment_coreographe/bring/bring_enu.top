@@ -1,0 +1,17 @@
+ topic: ~bring()
+language: enu
+
+# Defining extra concepts out of words or group of words
+#concept:(hello) [hello hi hey "good morning" greetings]
+
+# Catching inputs and triggering outputs
+#u:(e:onStart) $onStopped=1
+
+# Replying to speech
+#u:(~hello) ~hello
+
+u: (friend) I'd love to help. Who should I be looking for?
+
+u: (legos) Ok, but it seems there's no one fitting that description here in the corridor.
+
+u: ([laboratory lab]) Ok, please put the object in my hand $bool1 = "1"

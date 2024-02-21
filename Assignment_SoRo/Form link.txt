@@ -1,0 +1,8 @@
+Borelli Simone		s4662264
+Cappellini Matteo	s4822622
+Delucchi Manuel		s4803977
+Forni Matteo		s4673648
+
+Google form link: https://forms.gle/cmFQw4C4PFv4H1969
+
+In this folder there are a .crg file and the whole folder from which it was exported, we decided to leave both since it can sometimes cause problems depending on the version of the software
